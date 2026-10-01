@@ -5,10 +5,7 @@ export default async function handler(req, res) {
 
     try {
 
-        // ---------------------------------------
-        // Only POST request
-        // ---------------------------------------
-
+        // केवल POST
         if (req.method !== "POST") {
 
             return res.status(405).json({
@@ -19,10 +16,7 @@ export default async function handler(req, res) {
         }
 
 
-        // ---------------------------------------
-        // Get URL from request
-        // ---------------------------------------
-
+        // Request से URL लेना
         const { url } = req.body || {};
 
 
@@ -36,40 +30,31 @@ export default async function handler(req, res) {
         }
 
 
-        // ---------------------------------------
-        // Launch Chromium
-        // ---------------------------------------
+        console.log("Opening URL:", url);
 
+
+        // Chromium start
         const browser = await puppeteer.launch({
 
             args: chromium.args,
+
+            executablePath: await chromium.executablePath(),
+
+            headless: true,
 
             defaultViewport: {
                 width: 1280,
                 height: 900,
                 deviceScaleFactor: 1
-            },
-
-            executablePath: await chromium.executablePath(),
-
-            headless: "shell",
-
-            ignoreHTTPSErrors: true
+            }
 
         });
 
 
-        // ---------------------------------------
-        // Create page
-        // ---------------------------------------
-
         const page = await browser.newPage();
 
 
-        // ---------------------------------------
-        // Open invoice page
-        // ---------------------------------------
-
+        // Website खोलना
         await page.goto(url, {
 
             waitUntil: "networkidle0",
@@ -79,17 +64,13 @@ export default async function handler(req, res) {
         });
 
 
-        // ---------------------------------------
-        // Wait a little for fonts/images
-        // ---------------------------------------
+        // थोड़ा wait
+        await new Promise(resolve =>
+            setTimeout(resolve, 1000)
+        );
 
-        await new Promise(resolve => setTimeout(resolve, 1500));
 
-
-        // ---------------------------------------
-        // Generate PDF
-        // ---------------------------------------
-
+        // PDF बनाना
         const pdf = await page.pdf({
 
             format: "A4",
@@ -110,17 +91,10 @@ export default async function handler(req, res) {
         });
 
 
-        // ---------------------------------------
-        // Close browser
-        // ---------------------------------------
-
         await browser.close();
 
 
-        // ---------------------------------------
-        // Return PDF
-        // ---------------------------------------
-
+        // PDF response
         res.setHeader(
             "Content-Type",
             "application/pdf"
@@ -128,7 +102,7 @@ export default async function handler(req, res) {
 
         res.setHeader(
             "Content-Disposition",
-            "inline; filename=\"invoice.pdf\""
+            "attachment; filename=\"test.pdf\""
         );
 
         res.setHeader(
