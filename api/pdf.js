@@ -2,11 +2,9 @@ import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 
 export default async function handler(req, res) {
-
   let browser = null;
 
   try {
-
     if (req.method !== "POST") {
       return res.status(405).json({
         success: false,
@@ -23,7 +21,27 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log("PDF URL:", url);
+    // --------------------------------
+    // STEP 1: Fetch HTML using Vercel
+    // --------------------------------
+
+    console.log("Fetching URL:", url);
+
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      throw new Error(
+        `Source server returned HTTP ${response.status}`
+      );
+    }
+
+    const html = await response.text();
+
+    console.log("HTML received:", html.length);
+
+    // --------------------------------
+    // STEP 2: Start Chromium
+    // --------------------------------
 
     browser = await puppeteer.launch({
       args: [
@@ -31,8 +49,7 @@ export default async function handler(req, res) {
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-software-rasterizer"
+        "--disable-gpu"
       ],
       executablePath: await chromium.executablePath(),
       headless: true
@@ -40,35 +57,27 @@ export default async function handler(req, res) {
 
     const page = await browser.newPage();
 
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-      "AppleWebKit/537.36 (KHTML, like Gecko) " +
-      "Chrome/140.0.0.0 Safari/537.36"
-    );
-
     await page.setViewport({
       width: 1280,
       height: 900,
       deviceScaleFactor: 1
     });
 
-    console.log("Opening page...");
+    // --------------------------------
+    // STEP 3: Load HTML directly
+    // --------------------------------
 
-    const response = await page.goto(url, {
-      waitUntil: "domcontentloaded",
-      timeout: 45000
+    await page.setContent(html, {
+      waitUntil: "domcontentloaded"
     });
 
-    console.log(
-      "Page status:",
-      response ? response.status() : "NO RESPONSE"
-    );
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-    await page.waitForTimeout(2000);
+    console.log("HTML loaded into Chromium");
 
-    const title = await page.title();
-
-    console.log("Page title:", title);
+    // --------------------------------
+    // STEP 4: Generate PDF
+    // --------------------------------
 
     const pdfBuffer = await page.pdf({
       format: "A4",
@@ -87,6 +96,10 @@ export default async function handler(req, res) {
 
     const pdfBinary = Buffer.from(pdfBuffer);
 
+    // --------------------------------
+    // STEP 5: Return PDF
+    // --------------------------------
+
     res.statusCode = 200;
 
     res.setHeader(
@@ -96,7 +109,7 @@ export default async function handler(req, res) {
 
     res.setHeader(
       "Content-Disposition",
-      'attachment; filename="invoice.pdf"'
+      'attachment; filename="test.pdf"'
     );
 
     res.setHeader(
