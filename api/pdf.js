@@ -5,7 +5,10 @@ export default async function handler(req, res) {
 
     try {
 
-        // केवल POST
+        // -----------------------------------------
+        // Only POST
+        // -----------------------------------------
+
         if (req.method !== "POST") {
 
             return res.status(405).json({
@@ -16,9 +19,11 @@ export default async function handler(req, res) {
         }
 
 
-        // Request से URL लेना
-        const { url } = req.body || {};
+        // -----------------------------------------
+        // Get URL
+        // -----------------------------------------
 
+        const { url } = req.body || {};
 
         if (!url) {
 
@@ -30,10 +35,13 @@ export default async function handler(req, res) {
         }
 
 
-        console.log("Opening URL:", url);
+        console.log("PDF URL:", url);
 
 
-        // Chromium start
+        // -----------------------------------------
+        // Launch Chromium
+        // -----------------------------------------
+
         const browser = await puppeteer.launch({
 
             args: chromium.args,
@@ -51,10 +59,17 @@ export default async function handler(req, res) {
         });
 
 
+        // -----------------------------------------
+        // New Page
+        // -----------------------------------------
+
         const page = await browser.newPage();
 
 
-        // Website खोलना
+        // -----------------------------------------
+        // Open website
+        // -----------------------------------------
+
         await page.goto(url, {
 
             waitUntil: "networkidle0",
@@ -64,14 +79,20 @@ export default async function handler(req, res) {
         });
 
 
-        // थोड़ा wait
+        // -----------------------------------------
+        // Wait for fonts/images
+        // -----------------------------------------
+
         await new Promise(resolve =>
-            setTimeout(resolve, 1000)
+            setTimeout(resolve, 1500)
         );
 
 
-        // PDF बनाना
-        const pdf = await page.pdf({
+        // -----------------------------------------
+        // Generate PDF
+        // -----------------------------------------
+
+        const pdfBuffer = await page.pdf({
 
             format: "A4",
 
@@ -94,7 +115,18 @@ export default async function handler(req, res) {
         await browser.close();
 
 
-        // PDF response
+        // -----------------------------------------
+        // IMPORTANT
+        // Convert Buffer to binary string
+        // -----------------------------------------
+
+        const pdfBinary = Buffer.from(pdfBuffer);
+
+
+        // -----------------------------------------
+        // Headers
+        // -----------------------------------------
+
         res.setHeader(
             "Content-Type",
             "application/pdf"
@@ -102,21 +134,30 @@ export default async function handler(req, res) {
 
         res.setHeader(
             "Content-Disposition",
-            "attachment; filename=\"test.pdf\""
+            "attachment; filename=\"invoice.pdf\""
         );
 
         res.setHeader(
-            "Content-Length",
-            pdf.length
+            "Cache-Control",
+            "no-store, no-cache, must-revalidate"
+        );
+
+        res.setHeader(
+            "Pragma",
+            "no-cache"
         );
 
 
-        return res.status(200).send(pdf);
+        // -----------------------------------------
+        // Send real PDF binary
+        // -----------------------------------------
+
+        return res.end(pdfBinary);
 
 
     } catch (error) {
 
-        console.error(error);
+        console.error("PDF ERROR:", error);
 
         return res.status(500).json({
 
