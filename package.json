@@ -1,0 +1,9 @@
+{
+  "name": "carpenter-pdf",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@sparticuz/chromium": "^138.0.0",
+    "puppeteer-core": "^24.16.0"
+  }
+}
