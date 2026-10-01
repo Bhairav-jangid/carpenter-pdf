@@ -2,9 +2,11 @@ import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 
 export default async function handler(req, res) {
+
   let browser = null;
 
   try {
+
     if (req.method !== "POST") {
       return res.status(405).json({
         success: false,
@@ -21,29 +23,41 @@ export default async function handler(req, res) {
       });
     }
 
-    // --------------------------------
-    // STEP 1: Fetch HTML using Vercel
-    // --------------------------------
+    console.log("SOURCE URL:", url);
 
-    console.log("Fetching URL:", url);
+    // -----------------------------
+    // 1. Fetch HTML
+    // -----------------------------
 
     const response = await fetch(url);
 
-    if (!response.ok) {
-      throw new Error(
-        `Source server returned HTTP ${response.status}`
-      );
-    }
-
     const html = await response.text();
 
-    console.log("HTML received:", html.length);
+    console.log("HTTP STATUS:", response.status);
+    console.log("HTML LENGTH:", html.length);
 
-    // --------------------------------
-    // STEP 2: Start Chromium
-    // --------------------------------
+    if (!response.ok) {
+      return res.status(500).json({
+        success: false,
+        message: "Source page returned error",
+        status: response.status,
+        preview: html.substring(0, 1000)
+      });
+    }
+
+    if (!html || html.length < 10) {
+      return res.status(500).json({
+        success: false,
+        message: "Empty HTML received"
+      });
+    }
+
+    // -----------------------------
+    // 2. Launch Chromium
+    // -----------------------------
 
     browser = await puppeteer.launch({
+
       args: [
         ...chromium.args,
         "--no-sandbox",
@@ -51,9 +65,14 @@ export default async function handler(req, res) {
         "--disable-dev-shm-usage",
         "--disable-gpu"
       ],
+
       executablePath: await chromium.executablePath(),
+
       headless: true
+
     });
+
+    console.log("Chromium started");
 
     const page = await browser.newPage();
 
@@ -63,42 +82,75 @@ export default async function handler(req, res) {
       deviceScaleFactor: 1
     });
 
-    // --------------------------------
-    // STEP 3: Load HTML directly
-    // --------------------------------
+    // -----------------------------
+    // 3. Set HTML
+    // -----------------------------
 
     await page.setContent(html, {
-      waitUntil: "domcontentloaded"
+      waitUntil: "domcontentloaded",
+      timeout: 30000
     });
 
+    console.log("HTML loaded");
+
+    // Give browser time to render
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    console.log("HTML loaded into Chromium");
+    const title = await page.title();
 
-    // --------------------------------
-    // STEP 4: Generate PDF
-    // --------------------------------
+    const bodyText = await page.evaluate(() => {
+      return document.body
+        ? document.body.innerText.substring(0, 1000)
+        : "";
+    });
+
+    console.log("TITLE:", title);
+    console.log("BODY:", bodyText);
+
+    // -----------------------------
+    // 4. Generate PDF
+    // -----------------------------
 
     const pdfBuffer = await page.pdf({
+
       format: "A4",
+
       printBackground: true,
+
       preferCSSPageSize: true,
+
       margin: {
         top: "0",
         right: "0",
         bottom: "0",
         left: "0"
       }
+
     });
 
+    console.log("PDF SIZE:", pdfBuffer.length);
+
+    if (!pdfBuffer || pdfBuffer.length < 1000) {
+
+      return res.status(500).json({
+        success: false,
+        message: "PDF buffer is empty or invalid",
+        pdfSize: pdfBuffer ? pdfBuffer.length : 0,
+        title: title,
+        body: bodyText
+      });
+
+    }
+
     await browser.close();
+
     browser = null;
 
-    const pdfBinary = Buffer.from(pdfBuffer);
+    // -----------------------------
+    // 5. Send PDF
+    // -----------------------------
 
-    // --------------------------------
-    // STEP 5: Return PDF
-    // --------------------------------
+    const pdfBinary = Buffer.from(pdfBuffer);
 
     res.statusCode = 200;
 
@@ -134,16 +186,25 @@ export default async function handler(req, res) {
     console.error("PDF ERROR:", error);
 
     if (browser) {
+
       try {
         await browser.close();
       } catch (e) {}
+
     }
 
     return res.status(500).json({
+
       success: false,
+
       message: "PDF generation failed",
+
       error: error.message,
+
       stack: error.stack
+
     });
+
   }
+
 }
