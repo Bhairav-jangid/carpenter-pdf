@@ -87,9 +87,12 @@ export default async function handler(req, res) {
     // -----------------------------
 
     await page.setContent(html, {
-      waitUntil: "domcontentloaded",
+      waitUntil: ["domcontentloaded", "networkidle0"],
       timeout: 30000
     });
+
+    // Thoda sa pause taaki Google fonts render ho sakein
+    await new Promise(resolve => setTimeout(resolve, 2500));
 
     console.log("HTML loaded");
 
