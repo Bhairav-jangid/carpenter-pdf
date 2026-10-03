@@ -86,18 +86,18 @@ export default async function handler(req, res) {
     // 3. Set HTML
     // -----------------------------
 
-    await page.setContent(html, {
+    
+
+    await page.goto(url, {
       waitUntil: ["domcontentloaded", "networkidle0"],
       timeout: 30000
     });
+    
+    console.log("Page loaded via goto");
+    
+    // Thoda extra buffer time taaki images aur fonts fully render ho jayein
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
-    // Thoda sa pause taaki Google fonts render ho sakein
-    await new Promise(resolve => setTimeout(resolve, 2500));
-
-    console.log("HTML loaded");
-
-    // Give browser time to render
-    await new Promise(resolve => setTimeout(resolve, 2000));
 
     const title = await page.title();
 
